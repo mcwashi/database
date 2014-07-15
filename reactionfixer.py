@@ -1,6 +1,12 @@
-import sys,re
+import sys,re, psycopg2
+try:
+    conn = psycopg2.connect("dbname='reactions' user='postgres' host='localhost' password='testing!@3'")
+except:
+    print "Didn't work"
+    #other user snake password pyth0n! dbname='reactions'
 # import psycopg2 # database functions - use to populate and search against the database
 #from collections import defaultdict
+cur = conn.cursor()
 cpddic={}
 cpd_KID=["h2o","hx2coa","3hhcoa"] # Next step is to get these values from the files...
 listy=["c00001","c05271","c05268"]
@@ -29,7 +35,7 @@ def readfile(file):
         line=line.replace('<==>','<=>')
         kegeqn.append(line)
     return kegeqn
-
+#select keggcpd from master_compounds where to_tsvector(longname) @@ to_tsquery('NAD'); Use this to search in databases
 # line=line[:line2.start()]+line[line2.end():]#try:
 #    file=sys.argv[1]
 #except:
@@ -40,3 +46,6 @@ populatedictionary()
 readfile(source)
 if set(kegeqn[0])==set(kegeqn[1]):
     print "true"
+conn.commit()
+cur.close()
+conn.close()
