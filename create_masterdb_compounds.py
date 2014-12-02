@@ -6,7 +6,7 @@
 import psycopg2,re,sys,getopt # psycopg2 will need to installed
 from collections import defaultdict
 from libsbml import *
-def create_cpd_table(): # This function creates the table "compounds_master"
+def create_cpd_table(): # This function creates the table "kegg_compounds"
     cur.execute("CREATE TABLE kegg_compounds (KEGGcpd varchar PRIMARY KEY, SEEDcpd varchar, cpdID varchar, ChEBI varchar, Names varchar, Abbreviation varchar);")
     keggcpd=open("/home/snorris/Ubuntu One/Thesis Project/Scrapy/tutorial/tutorial/cpd") 
     for each in keggcpd:
@@ -19,6 +19,8 @@ def create_cpd_table(): # This function creates the table "compounds_master"
     keggcpd.close()
     conn.commit()
 def addSEED(): # Add Seed Compounds to the table
+    cur.execute("SELECT * FROM kegg_compounds;")
+    test=cur.fetchall()
     number=0
     seedcpd=open("/home/snorris/Ubuntu One/Thesis Project/rxndb/ModelSEED-compounds-db.txt")
     seedcpd.readline()
@@ -33,18 +35,20 @@ def addSEED(): # Add Seed Compounds to the table
             while id >= 0:
                 if every[0]==SEEDREF[id]:
                     print "Adding multiple:", SEEDREF[id]
-                    cur.execute("UPDATE compounds_master SET seedcpd=%s,Names=%s where keggcpd=%s;",(SEEDID,SEEDNAME,SEEDREF[id])) #update the database
+                    cur.execute("UPDATE kegg_compounds SET seedcpd=%s,Names=%s where keggcpd=%s;",(SEEDID,SEEDNAME,SEEDREF[id])) #update the database
                     conn.commit()
                 id=id-1
         if each[4] is '':
             print "No Kegg ID matched",SEEDREF,SEEDID
             UNKKegg=str(''.join(["unknown",str(number)]))
-            cur.execute("INSERT INTO compounds_master (KEGGcpd,SEEDcpd,Names) VALUES(%s,%s,%s)",(UNKKegg,SEEDID,SEEDNAME)) #update the database
+            cur.execute("INSERT INTO kegg_compounds (KEGGcpd,SEEDcpd,Names) VALUES(%s,%s,%s)",(UNKKegg,SEEDID,SEEDNAME)) #update the database
             conn.commit()
             number+=1
     seedcpd.close()
     conn.commit()
 def addcompoundDB(): # Add the compounds database file to the table
+    cur.execute("SELECT * FROM kegg_compounds;")
+    test=cur.fetchall()
     cpdDB=open("/home/snorris/Ubuntu One/Thesis Project/rxndb/compound_database_v2.txt")
     cpdDB.readline()
     number=0
@@ -59,22 +63,24 @@ def addcompoundDB(): # Add the compounds database file to the table
             while id >= 0:
                 if every[0]==cpdDBREF[id]:
                     print "Adding multiple:", cpdDBREF[id]
-                    cur.execute("UPDATE compounds_master SET cpdID=%s where keggcpd=%s;",(cpdDBID,cpdDBREF[id])) #update the database
+                    cur.execute("UPDATE kegg_compounds SET cpdID=%s where keggcpd=%s;",(cpdDBID,cpdDBREF[id])) #update the database
                     conn.commit()
                 id=id-1
         if each[4] is '':
             print "No Kegg ID matched",cpdDBREF,cpdDBID
             try:
-                cur.execute("UPDATE compounds_master SET cpdID=%s where seedcpd=%s;",(cpdDBID,cpdDBID)) #update the database
+                cur.execute("UPDATE kegg_compounds SET cpdID=%s where seedcpd=%s;",(cpdDBID,cpdDBID)) #update the database
             except:
                 UNKKegg=str(''.join(["unknown",str(number)]))
-                cur.execute("INSERT INTO compounds_master (KEGGcpd,SEEDcpd,Names) VALUES(%s,%s,%s)",(UNKKegg,cpdDBID,cpdDBName)) #update the database
+                cur.execute("INSERT INTO kegg_compounds (KEGGcpd,SEEDcpd,Names) VALUES(%s,%s,%s)",(UNKKegg,cpdDBID,cpdDBName)) #update the database
                 conn.commit()
                 number+=1
-           # cur.execute("INSERT INTO compounds_master (cpdID,Names) VALUES(%s,%s,%s);",(cpdDBID,' '.join([cpdDBName,cpDBAltName])))
+           # cur.execute("INSERT INTO kegg_compounds (cpdID,Names) VALUES(%s,%s,%s);",(cpdDBID,' '.join([cpdDBName,cpDBAltName])))
     cpdDB.close()
     conn.commit()
 def addChEBI(): # Add the ChEBI compounds to the table
+    cur.execute("SELECT * FROM kegg_compounds;")
+    test=cur.fetchall()
     cur.execute("SELECT * FROM database_accession WHERE type ='KEGG COMPOUND accession';")
     chebitest=cur.fetchall()
     for each in chebitest:
@@ -82,7 +88,7 @@ def addChEBI(): # Add the ChEBI compounds to the table
         ChEBIID=each[1]
         for every in test:
             if each[2] == every[0]:
-                cur.execute("UPDATE compounds_master SET ChEBI=%s where keggcpd=%s;",(ChEBIID,ChEBIREF))
+                cur.execute("UPDATE kegg_compounds SET ChEBI=%s where keggcpd=%s;",(ChEBIID,ChEBIREF))
 # # # # # # # # # # # # # Define the Reaction Tables Functions # # # # # # # # # # # # # # # # # # # # #
 def create_rxn_table():
     try:
@@ -214,12 +220,12 @@ def create_seed_rxn(): #this appears to be terribly slow, likely due to ineffeci
         comps=re.split(" ",compounds)
         for each in comps:
             if re.search('cpd[a-zA-Z0-9]',each):
-                cur.execute(("SELECT keggcpd from compounds_master where to_tsvector(seedcpd) @@ to_tsquery('%s') ORDER BY keggcpd;") % each)
+                cur.execute(("SELECT keggcpd from kegg_compounds where to_tsvector(seedcpd) @@ to_tsquery('%s') ORDER BY keggcpd;") % each)
                 result=re.sub(r'\W+','',str(cur.fetchone()))
                 if result != 'None':
                     compounds=compounds.replace(each,result,1)
                 else:
-                    cur.execute(("SELECT keggcpd from compounds_master where to_tsvector(names) @@ to_tsquery('%s') ORDER BY keggcpd;") % each)
+                    cur.execute(("SELECT keggcpd from kegg_compounds where to_tsvector(names) @@ to_tsquery('%s') ORDER BY keggcpd;") % each)
                     result=re.sub(r'\W+','',str(cur.fetchone()))
                     compounds=compounds.replace(each,result,1)
         if compounds is not None:
@@ -241,8 +247,9 @@ def create_seed_rxn(): #this appears to be terribly slow, likely due to ineffeci
 #         print "SEED Reaction Table already exists... continuing"
 
 def create_niti_rxn():
+    lett=(re.compile('\[[a-z0-9]\]',re.I))
     nitifile=open("/home/snorris/Ubuntu One/Thesis Project/rxndb/RxnDb01_24_2013.txt")
-    cur.execute("CREATE TABLE NITI_Reactions (NITI_RXN_ID varchar PRIMARY KEY, KEGG_RXN_ID varchar REFERENCES kegg_reactions(keggrxn), Name varchar, Named_Reaction varchar, C_Reaction varchar, Pathway varchar, Enzyme varchar, Thermodynamics varchar);")
+#     cur.execute("CREATE TABLE NITI_Reactions (NITI_RXN_ID varchar PRIMARY KEY, KEGG_RXN_ID varchar REFERENCES kegg_reactions(keggrxn), Name varchar, Named_Reaction varchar, C_Reaction varchar, Pathway varchar, Enzyme varchar, Thermodynamics varchar);")
     for line in nitifile:
         line=line.split('\t')
         NITI_RXN_ID=line[0]
@@ -257,7 +264,7 @@ def create_niti_rxn():
         comps=re.split(" ",compounds)
         for each in comps:
             if re.search('[a-zA-Z0-9\_]',each):
-                    cur.execute(("SELECT keggcpd from compounds_master where to_tsvector(names) @@ to_tsquery('%s') ORDER BY keggcpd;") % each)
+                    cur.execute(("SELECT keggcpd from kegg_compounds where to_tsvector(names) @@ to_tsquery('%s') ORDER BY keggcpd;") % each)
                     result=re.sub(r'\W+','',str(cur.fetchone()))
                     if result is not None:
                         compounds=compounds.replace(each,result,1)
@@ -282,24 +289,22 @@ def create_niti_rxn():
 # cur.execute("SELECT ...; DELETE FROM compounds WHERE keggcpd='';)
 # # # # # # # Database connection information # # # # # # # #
 try:
-    conn = psycopg2.connect("dbname='reactions' user='postgres' host='localhost' password='testing!@3'") # open that database connection  #other user snake password pyth0n! dbname='reactions'
+    conn = psycopg2.connect("dbname='reactions' user='creator' host='localhost' password='testing!@#'") # open that database connection  #other user snake password pyth0n! dbname='reactions'
 except:
     print "Unable to connect to database"
     quit()
 cur = conn.cursor() #set up the psql cursor
 # # # # # Call the functions # # # # # # #
 def compounds():
-    create_cpd_table() #create the initial table and populate it with KEGG IDs
-    cur.execute("SELECT * FROM compounds_master;")
-    test=cur.fetchall()
-    addSEED() #add the seed database data
+#     create_cpd_table() #create the initial table and populate it with KEGG IDs
+#     addSEED() #add the seed database data
     addcompoundDB() #add the niti database data#addChEBI() #add the ChEBI database data 
     addChEBI()
 # TO DO: Create the reaction tables #
 def reactions():
-#   create_rxn_table() #create the kegg reactions table
-    create_seed_rxn()
-#     create_niti_rxn()
+#     create_rxn_table() #create the kegg reactions table
+#     create_seed_rxn()
+    create_niti_rxn()
 #     create_reactionstxt()
 #     create_transportrxn()
 
@@ -323,7 +328,7 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-# cur.execute("SELECT * from compounds_master where keggcpd='C00001';") can be deleted, for testing only.
+# cur.execute("SELECT * from kegg_compounds where keggcpd='C00001';") can be deleted, for testing only.
 # print cur.fetchone() # can be deleted, for testing only
 conn.commit()
 cur.close()
